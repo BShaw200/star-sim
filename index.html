@@ -70,7 +70,7 @@
     <div id="canvas-container"></div>
 
     <div id="ui-overlay">
-        <div>VELOCITY: <span id="velocity">0</span> c</div>
+        <div>SPEED: <span id="velocity">0</span></div>
         <div>STARS: <span id="star-count">0</span></div>
         <div>MODE: <span id="mode">CRUISE</span></div>
     </div>
@@ -78,7 +78,7 @@
     <div id="hyperdrive-status">HYPERDRIVE ENGAGED</div>
 
     <div id="instructions">
-        Press <strong>H</strong> to engage HYPERDRIVE
+        <strong>H</strong>: Hyperdrive | <strong>↑/↓</strong>: Speed ±0.001 | <strong>←/→</strong>: Stars ±1000
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -95,16 +95,18 @@
         camera.position.z = 0;
 
         // Star field parameters
-        const STAR_COUNT = 15000;
+        let starCount = 15000;
         const SPACE_SIZE = 2000;
         const CRUISE_SPEED = 2;
         const HYPERDRIVE_SPEED = 150;
+        const SPEED_INCREMENT = 0.001;
+        const STAR_COUNT_INCREMENT = 1000;
 
         // State management
         let hyperdriveActive = false;
         let currentSpeed = CRUISE_SPEED;
         let targetSpeed = CRUISE_SPEED;
-        let stars = [];
+        let starField = null;
         let starStreaks = [];
 
         // Create circular star texture
@@ -137,7 +139,7 @@
             const starColors = [];
             const starSizes = [];
 
-            for (let i = 0; i < STAR_COUNT; i++) {
+            for (let i = 0; i < starCount; i++) {
                 // Random position in a cylinder around the flight path
                 const angle = Math.random() * Math.PI * 2;
                 const radius = Math.random() * SPACE_SIZE;
@@ -235,6 +237,17 @@
             return streaks;
         }
 
+        // Regenerate star field with new count
+        function regenerateStarField() {
+            if (starField) {
+                scene.remove(starField);
+                starField.geometry.dispose();
+                starField.material.dispose();
+            }
+            starField = createStarField();
+            document.getElementById('star-count').textContent = starCount;
+        }
+
         // Ambient starlight
         const ambientLight = new THREE.AmbientLight(0x222244, 0.3);
         scene.add(ambientLight);
@@ -245,10 +258,8 @@
         scene.add(pointLight);
 
         // Initialize scene
-        const starField = createStarField();
+        regenerateStarField();
         starStreaks = createStarStreaks();
-
-        document.getElementById('star-count').textContent = STAR_COUNT;
 
         // Keyboard controls
         let hyperdriveKeyPressed = false;
@@ -271,6 +282,36 @@
                     targetSpeed = CRUISE_SPEED;
                     document.getElementById('mode').textContent = 'CRUISE';
                 }
+            }
+
+            // Speed controls with arrow keys
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                targetSpeed += SPEED_INCREMENT;
+                if (!hyperdriveActive) {
+                    document.getElementById('mode').textContent = 'MANUAL';
+                }
+            }
+
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                targetSpeed = Math.max(0, targetSpeed - SPEED_INCREMENT);
+                if (!hyperdriveActive) {
+                    document.getElementById('mode').textContent = 'MANUAL';
+                }
+            }
+
+            // Star count controls with left/right arrow keys
+            if (e.key === 'ArrowLeft') {
+                e.preventDefault();
+                starCount = Math.max(100, starCount - STAR_COUNT_INCREMENT);
+                regenerateStarField();
+            }
+
+            if (e.key === 'ArrowRight') {
+                e.preventDefault();
+                starCount = Math.min(50000, starCount + STAR_COUNT_INCREMENT);
+                regenerateStarField();
             }
         });
 
@@ -349,7 +390,7 @@
             camera.position.y = Math.cos(Date.now() * 0.00015) * 1.5;
 
             // Update UI
-            const velocity = (currentSpeed / HYPERDRIVE_SPEED).toFixed(3);
+            const velocity = currentSpeed.toFixed(3);
             document.getElementById('velocity').textContent = velocity;
 
             renderer.render(scene, camera);
