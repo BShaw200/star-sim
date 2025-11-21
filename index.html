@@ -1,0 +1,345 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Flight Simulator - Hyperdrive Edition</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Courier New', monospace;
+        }
+
+        #canvas-container {
+            width: 100vw;
+            height: 100vh;
+        }
+
+        #ui-overlay {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            color: #00ff88;
+            text-shadow: 0 0 10px #00ff88;
+            z-index: 100;
+            font-size: 14px;
+            pointer-events: none;
+        }
+
+        #hyperdrive-status {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #00ffff;
+            font-size: 48px;
+            font-weight: bold;
+            text-shadow: 0 0 20px #00ffff, 0 0 40px #00ffff;
+            opacity: 0;
+            transition: opacity 0.3s;
+            pointer-events: none;
+            z-index: 200;
+        }
+
+        #hyperdrive-status.active {
+            opacity: 1;
+        }
+
+        #instructions {
+            position: fixed;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #fff;
+            text-align: center;
+            font-size: 16px;
+            opacity: 0.7;
+            z-index: 100;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body>
+    <div id="canvas-container"></div>
+
+    <div id="ui-overlay">
+        <div>VELOCITY: <span id="velocity">0</span> c</div>
+        <div>STARS: <span id="star-count">0</span></div>
+        <div>MODE: <span id="mode">CRUISE</span></div>
+    </div>
+
+    <div id="hyperdrive-status">HYPERDRIVE ENGAGED</div>
+
+    <div id="instructions">
+        Press <strong>H</strong> to engage HYPERDRIVE
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Scene setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 10000);
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.setPixelRatio(window.devicePixelRatio);
+        document.getElementById('canvas-container').appendChild(renderer.domElement);
+
+        camera.position.z = 0;
+
+        // Star field parameters
+        const STAR_COUNT = 15000;
+        const SPACE_SIZE = 2000;
+        const CRUISE_SPEED = 2;
+        const HYPERDRIVE_SPEED = 150;
+
+        // State management
+        let hyperdriveActive = false;
+        let currentSpeed = CRUISE_SPEED;
+        let targetSpeed = CRUISE_SPEED;
+        let stars = [];
+        let starStreaks = [];
+
+        // Create star field
+        function createStarField() {
+            const starGeometry = new THREE.BufferGeometry();
+            const starPositions = [];
+            const starColors = [];
+            const starSizes = [];
+
+            for (let i = 0; i < STAR_COUNT; i++) {
+                // Random position in a cylinder around the flight path
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * SPACE_SIZE;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                const z = (Math.random() - 0.5) * SPACE_SIZE * 4;
+
+                starPositions.push(x, y, z);
+
+                // Star color variation (white, blue, orange, red)
+                const colorType = Math.random();
+                let color;
+                if (colorType < 0.6) {
+                    color = new THREE.Color(1, 1, 1); // White
+                } else if (colorType < 0.8) {
+                    color = new THREE.Color(0.7, 0.8, 1); // Blue
+                } else if (colorType < 0.95) {
+                    color = new THREE.Color(1, 0.8, 0.6); // Orange
+                } else {
+                    color = new THREE.Color(1, 0.6, 0.6); // Red
+                }
+
+                starColors.push(color.r, color.g, color.b);
+
+                // Varied star sizes for depth
+                const size = Math.random() * 3 + 1;
+                starSizes.push(size);
+            }
+
+            starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
+            starGeometry.setAttribute('color', new THREE.Float32BufferAttribute(starColors, 3));
+            starGeometry.setAttribute('size', new THREE.Float32BufferAttribute(starSizes, 1));
+
+            const starMaterial = new THREE.PointsMaterial({
+                size: 2,
+                sizeAttenuation: true,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+
+            const starField = new THREE.Points(starGeometry, starMaterial);
+            scene.add(starField);
+
+            return starField;
+        }
+
+        // Create hyperdrive streak effect
+        function createStarStreaks() {
+            const streaks = [];
+            const streakCount = 800;
+
+            for (let i = 0; i < streakCount; i++) {
+                const angle = Math.random() * Math.PI * 2;
+                const radius = Math.random() * SPACE_SIZE * 0.8;
+                const x = Math.cos(angle) * radius;
+                const y = Math.sin(angle) * radius;
+                const z = (Math.random() - 0.5) * SPACE_SIZE * 2;
+
+                const geometry = new THREE.BufferGeometry();
+                const positions = new Float32Array([
+                    x, y, z,
+                    x, y, z - 100
+                ]);
+
+                geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+                const colorType = Math.random();
+                let color;
+                if (colorType < 0.7) {
+                    color = new THREE.Color(0.8, 0.9, 1);
+                } else {
+                    color = new THREE.Color(0.6, 0.8, 1);
+                }
+
+                const material = new THREE.LineBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: 0,
+                    blending: THREE.AdditiveBlending,
+                    linewidth: 2
+                });
+
+                const streak = new THREE.Line(geometry, material);
+                scene.add(streak);
+                streaks.push({
+                    mesh: streak,
+                    baseZ: z,
+                    speed: Math.random() * 0.5 + 0.5
+                });
+            }
+
+            return streaks;
+        }
+
+        // Ambient starlight
+        const ambientLight = new THREE.AmbientLight(0x222244, 0.3);
+        scene.add(ambientLight);
+
+        // Distant star glow
+        const pointLight = new THREE.PointLight(0x4488ff, 0.5, 5000);
+        pointLight.position.set(0, 0, -2000);
+        scene.add(pointLight);
+
+        // Initialize scene
+        const starField = createStarField();
+        starStreaks = createStarStreaks();
+
+        document.getElementById('star-count').textContent = STAR_COUNT;
+
+        // Keyboard controls
+        let hyperdriveKeyPressed = false;
+
+        document.addEventListener('keydown', (e) => {
+            if (e.key.toLowerCase() === 'h' && !hyperdriveKeyPressed) {
+                hyperdriveKeyPressed = true;
+                hyperdriveActive = !hyperdriveActive;
+
+                if (hyperdriveActive) {
+                    targetSpeed = HYPERDRIVE_SPEED;
+                    document.getElementById('mode').textContent = 'HYPERDRIVE';
+                    document.getElementById('hyperdrive-status').classList.add('active');
+
+                    // Flash effect
+                    setTimeout(() => {
+                        document.getElementById('hyperdrive-status').classList.remove('active');
+                    }, 1500);
+                } else {
+                    targetSpeed = CRUISE_SPEED;
+                    document.getElementById('mode').textContent = 'CRUISE';
+                }
+            }
+        });
+
+        document.addEventListener('keyup', (e) => {
+            if (e.key.toLowerCase() === 'h') {
+                hyperdriveKeyPressed = false;
+            }
+        });
+
+        // Animation loop
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Smooth speed transition
+            currentSpeed += (targetSpeed - currentSpeed) * 0.02;
+
+            // Update star positions
+            const positions = starField.geometry.attributes.position.array;
+            for (let i = 0; i < positions.length; i += 3) {
+                positions[i + 2] += currentSpeed;
+
+                // Wrap stars around
+                if (positions[i + 2] > SPACE_SIZE * 2) {
+                    positions[i + 2] = -SPACE_SIZE * 2;
+
+                    // Randomize position when wrapping
+                    const angle = Math.random() * Math.PI * 2;
+                    const radius = Math.random() * SPACE_SIZE;
+                    positions[i] = Math.cos(angle) * radius;
+                    positions[i + 1] = Math.sin(angle) * radius;
+                }
+            }
+            starField.geometry.attributes.position.needsUpdate = true;
+
+            // Update hyperdrive streaks
+            if (hyperdriveActive) {
+                starStreaks.forEach(streak => {
+                    const positions = streak.mesh.geometry.attributes.position.array;
+                    const speed = currentSpeed * streak.speed;
+
+                    // Move streak forward
+                    positions[2] += speed;
+                    positions[5] += speed;
+
+                    // Extend streak length based on speed
+                    const streakLength = Math.min(currentSpeed * 3, 500);
+                    positions[5] = positions[2] - streakLength;
+
+                    // Wrap around
+                    if (positions[2] > SPACE_SIZE * 2) {
+                        const angle = Math.random() * Math.PI * 2;
+                        const radius = Math.random() * SPACE_SIZE * 0.8;
+                        positions[0] = Math.cos(angle) * radius;
+                        positions[1] = Math.sin(angle) * radius;
+                        positions[2] = -SPACE_SIZE * 2;
+                        positions[3] = positions[0];
+                        positions[4] = positions[1];
+                        positions[5] = positions[2] - streakLength;
+                    }
+
+                    streak.mesh.geometry.attributes.position.needsUpdate = true;
+
+                    // Fade in/out streaks
+                    const targetOpacity = hyperdriveActive ? 0.7 : 0;
+                    streak.mesh.material.opacity += (targetOpacity - streak.mesh.material.opacity) * 0.05;
+                });
+            } else {
+                // Fade out streaks
+                starStreaks.forEach(streak => {
+                    streak.mesh.material.opacity *= 0.95;
+                });
+            }
+
+            // Camera subtle movement for immersion
+            camera.position.x = Math.sin(Date.now() * 0.0001) * 2;
+            camera.position.y = Math.cos(Date.now() * 0.00015) * 1.5;
+
+            // Update UI
+            const velocity = (currentSpeed / HYPERDRIVE_SPEED).toFixed(3);
+            document.getElementById('velocity').textContent = velocity;
+
+            renderer.render(scene, camera);
+        }
+
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+
+        // Start animation
+        animate();
+    </script>
+</body>
+</html>
