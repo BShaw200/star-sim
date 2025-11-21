@@ -31,8 +31,13 @@ A spectacular, cinematic star flight visualization that takes you on a journey t
 
 - **H Key**: Toggle Hyperdrive mode
   - **Cruise Mode**: Leisurely flight at 2 units/frame
-  - **Hyperdrive Mode**: Warp speed at 150 units/frame with star-streaking effects
-- **Up/Down Arrow Keys**: Fine-tune speed in 0.001 increments
+  - **Hyperdrive Mode**: Warp speed at 150 units/frame with cinematic effects:
+    - Brilliant blue warp flash on engagement
+    - Dynamic FOV zoom (75° to 95°)
+    - Camera shake effect
+    - Tunnel vortex visualization
+    - 1,500 pulsing star streaks
+- **Up/Down Arrow Keys**: Fine-tune speed in 0.01 increments
   - Activates **Manual Mode** for precise speed control
 - **Left/Right Arrow Keys**: Adjust star count in 1000 increments
   - Range: 100 to 50,000 stars
@@ -46,9 +51,15 @@ A spectacular, cinematic star flight visualization that takes you on a journey t
   - Orange: Cooler stars (15%)
   - Red: Red giants (5%)
 
-- **Hyperdrive Effect**: 800 dynamic light streaks that extend and fade based on velocity
+- **Hyperdrive Effect**: Hollywood-quality lightspeed jump with:
+  - 1,500 dynamic light streaks with pulsing animation
+  - Bright blue warp flash on engagement
+  - Tunnel vortex effect for depth perception
+  - Camera FOV expansion and shake
+  - Extended streaks up to 800 units long
 - **Additive Blending**: Stars glow and bloom for cinematic quality
 - **Depth of Field**: Size attenuation for realistic distance perception
+- **Dynamic Camera**: Responds to flight mode with enhanced movement during hyperdrive
 
 ## Performance
 
@@ -83,7 +94,7 @@ let starCount = 15000;              // Initial number of stars (adjustable 100-5
 const SPACE_SIZE = 2000;            // Size of the space volume
 const CRUISE_SPEED = 2;             // Normal flight speed
 const HYPERDRIVE_SPEED = 150;       // Hyperdrive speed
-const SPEED_INCREMENT = 0.001;      // Speed adjustment increment
+const SPEED_INCREMENT = 0.01;       // Speed adjustment increment
 const STAR_COUNT_INCREMENT = 1000;  // Star count adjustment increment
 ```
 
