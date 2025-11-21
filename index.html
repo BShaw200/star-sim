@@ -143,6 +143,7 @@
         let hyperdriveActive = false;
         let currentSpeed = CRUISE_SPEED;
         let targetSpeed = CRUISE_SPEED;
+        let preHyperdriveSpeed = CRUISE_SPEED; // Remember speed before hyperdrive
         let starField = null;
         let starStreaks = [];
         let baseFOV = 75;
@@ -317,6 +318,9 @@
                 hyperdriveActive = !hyperdriveActive;
 
                 if (hyperdriveActive) {
+                    // Save current speed before engaging hyperdrive
+                    preHyperdriveSpeed = targetSpeed;
+
                     targetSpeed = HYPERDRIVE_SPEED;
                     targetFOV = 95; // Widen FOV for speed effect
                     hyperdriveTransition = 1.0;
@@ -337,11 +341,17 @@
                         document.getElementById('warp-flash').classList.remove('active');
                     }, 200);
                 } else {
-                    targetSpeed = CRUISE_SPEED;
+                    // Return to pre-hyperdrive speed
+                    targetSpeed = preHyperdriveSpeed;
                     targetFOV = 75; // Return to normal FOV
                     hyperdriveTransition = 0;
 
-                    document.getElementById('mode').textContent = 'CRUISE';
+                    // Restore mode based on previous speed
+                    if (preHyperdriveSpeed === CRUISE_SPEED) {
+                        document.getElementById('mode').textContent = 'CRUISE';
+                    } else {
+                        document.getElementById('mode').textContent = 'MANUAL';
+                    }
                     document.getElementById('tunnel-effect').classList.remove('active');
                 }
             }
@@ -349,16 +359,18 @@
             // Speed controls with arrow keys
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                targetSpeed += SPEED_INCREMENT;
                 if (!hyperdriveActive) {
+                    targetSpeed += SPEED_INCREMENT;
+                    preHyperdriveSpeed = targetSpeed; // Update saved speed
                     document.getElementById('mode').textContent = 'MANUAL';
                 }
             }
 
             if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                targetSpeed = Math.max(0, targetSpeed - SPEED_INCREMENT);
                 if (!hyperdriveActive) {
+                    targetSpeed = Math.max(0, targetSpeed - SPEED_INCREMENT);
+                    preHyperdriveSpeed = targetSpeed; // Update saved speed
                     document.getElementById('mode').textContent = 'MANUAL';
                 }
             }
@@ -387,11 +399,13 @@
         function animate() {
             requestAnimationFrame(animate);
 
-            // Smooth speed transition
-            currentSpeed += (targetSpeed - currentSpeed) * 0.02;
+            // Smooth speed transition - faster when dropping out of hyperdrive
+            const speedTransitionRate = (!hyperdriveActive && currentSpeed > targetSpeed + 10) ? 0.15 : 0.02;
+            currentSpeed += (targetSpeed - currentSpeed) * speedTransitionRate;
 
-            // Smooth FOV transition for cinematic zoom effect
-            camera.fov += (targetFOV - camera.fov) * 0.05;
+            // Smooth FOV transition for cinematic zoom effect - faster when dropping out of hyperdrive
+            const fovTransitionRate = (!hyperdriveActive && camera.fov > targetFOV + 2) ? 0.2 : 0.05;
+            camera.fov += (targetFOV - camera.fov) * fovTransitionRate;
             camera.updateProjectionMatrix();
 
             // Camera shake during hyperdrive transition
