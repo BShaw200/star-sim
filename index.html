@@ -64,10 +64,47 @@
             z-index: 100;
             pointer-events: none;
         }
+
+        #warp-flash {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, rgba(100, 200, 255, 0.8) 0%, rgba(0, 100, 255, 0) 70%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 50;
+            transition: opacity 0.1s;
+        }
+
+        #warp-flash.active {
+            opacity: 1;
+        }
+
+        #tunnel-effect {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            background: radial-gradient(circle, transparent 20%, rgba(0, 50, 100, 0.3) 60%, rgba(0, 20, 50, 0.8) 100%);
+            opacity: 0;
+            pointer-events: none;
+            z-index: 49;
+            transition: opacity 0.5s;
+        }
+
+        #tunnel-effect.active {
+            opacity: 1;
+        }
     </style>
 </head>
 <body>
     <div id="canvas-container"></div>
+
+    <div id="warp-flash"></div>
+    <div id="tunnel-effect"></div>
 
     <div id="ui-overlay">
         <div>SPEED: <span id="velocity">0</span></div>
@@ -78,7 +115,7 @@
     <div id="hyperdrive-status">HYPERDRIVE ENGAGED</div>
 
     <div id="instructions">
-        <strong>H</strong>: Hyperdrive | <strong>↑/↓</strong>: Speed ±0.001 | <strong>←/→</strong>: Stars ±1000
+        <strong>H</strong>: Hyperdrive | <strong>↑/↓</strong>: Speed ±0.01 | <strong>←/→</strong>: Stars ±1000
     </div>
 
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
@@ -99,7 +136,7 @@
         const SPACE_SIZE = 2000;
         const CRUISE_SPEED = 2;
         const HYPERDRIVE_SPEED = 150;
-        const SPEED_INCREMENT = 0.001;
+        const SPEED_INCREMENT = 0.01;
         const STAR_COUNT_INCREMENT = 1000;
 
         // State management
@@ -108,6 +145,10 @@
         let targetSpeed = CRUISE_SPEED;
         let starField = null;
         let starStreaks = [];
+        let baseFOV = 75;
+        let targetFOV = 75;
+        let cameraShake = 0;
+        let hyperdriveTransition = 0;
 
         // Create circular star texture
         function createStarTexture() {
@@ -192,7 +233,7 @@
         // Create hyperdrive streak effect
         function createStarStreaks() {
             const streaks = [];
-            const streakCount = 800;
+            const streakCount = 1500; // Increased from 800
 
             for (let i = 0; i < streakCount; i++) {
                 const angle = Math.random() * Math.PI * 2;
@@ -209,12 +250,17 @@
 
                 geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
 
+                // More varied and intense colors
                 const colorType = Math.random();
                 let color;
-                if (colorType < 0.7) {
-                    color = new THREE.Color(0.8, 0.9, 1);
+                if (colorType < 0.5) {
+                    color = new THREE.Color(0.9, 0.95, 1); // Bright white-blue
+                } else if (colorType < 0.8) {
+                    color = new THREE.Color(0.5, 0.8, 1); // Cyan
+                } else if (colorType < 0.95) {
+                    color = new THREE.Color(0.8, 0.9, 1); // Light blue
                 } else {
-                    color = new THREE.Color(0.6, 0.8, 1);
+                    color = new THREE.Color(1, 1, 1); // Pure white
                 }
 
                 const material = new THREE.LineBasicMaterial({
@@ -222,7 +268,7 @@
                     transparent: true,
                     opacity: 0,
                     blending: THREE.AdditiveBlending,
-                    linewidth: 2
+                    linewidth: 3 // Increased from 2
                 });
 
                 const streak = new THREE.Line(geometry, material);
@@ -230,7 +276,8 @@
                 streaks.push({
                     mesh: streak,
                     baseZ: z,
-                    speed: Math.random() * 0.5 + 0.5
+                    speed: Math.random() * 0.5 + 0.5,
+                    baseColor: color
                 });
             }
 
@@ -271,16 +318,31 @@
 
                 if (hyperdriveActive) {
                     targetSpeed = HYPERDRIVE_SPEED;
+                    targetFOV = 95; // Widen FOV for speed effect
+                    hyperdriveTransition = 1.0;
+                    cameraShake = 1.0;
+
                     document.getElementById('mode').textContent = 'HYPERDRIVE';
                     document.getElementById('hyperdrive-status').classList.add('active');
+                    document.getElementById('warp-flash').classList.add('active');
+                    document.getElementById('tunnel-effect').classList.add('active');
 
                     // Flash effect
                     setTimeout(() => {
                         document.getElementById('hyperdrive-status').classList.remove('active');
                     }, 1500);
+
+                    // Remove initial flash after brief moment
+                    setTimeout(() => {
+                        document.getElementById('warp-flash').classList.remove('active');
+                    }, 200);
                 } else {
                     targetSpeed = CRUISE_SPEED;
+                    targetFOV = 75; // Return to normal FOV
+                    hyperdriveTransition = 0;
+
                     document.getElementById('mode').textContent = 'CRUISE';
+                    document.getElementById('tunnel-effect').classList.remove('active');
                 }
             }
 
@@ -328,6 +390,17 @@
             // Smooth speed transition
             currentSpeed += (targetSpeed - currentSpeed) * 0.02;
 
+            // Smooth FOV transition for cinematic zoom effect
+            camera.fov += (targetFOV - camera.fov) * 0.05;
+            camera.updateProjectionMatrix();
+
+            // Camera shake during hyperdrive transition
+            if (cameraShake > 0) {
+                cameraShake *= 0.92; // Decay shake
+                const shakeIntensity = cameraShake * 0.5;
+                camera.rotation.z = (Math.random() - 0.5) * shakeIntensity * 0.02;
+            }
+
             // Update star positions
             const positions = starField.geometry.attributes.position.array;
             for (let i = 0; i < positions.length; i += 3) {
@@ -348,7 +421,7 @@
 
             // Update hyperdrive streaks
             if (hyperdriveActive) {
-                starStreaks.forEach(streak => {
+                starStreaks.forEach((streak, index) => {
                     const positions = streak.mesh.geometry.attributes.position.array;
                     const speed = currentSpeed * streak.speed;
 
@@ -356,8 +429,8 @@
                     positions[2] += speed;
                     positions[5] += speed;
 
-                    // Extend streak length based on speed
-                    const streakLength = Math.min(currentSpeed * 3, 500);
+                    // Extend streak length based on speed - much longer streaks!
+                    const streakLength = Math.min(currentSpeed * 5, 800);
                     positions[5] = positions[2] - streakLength;
 
                     // Wrap around
@@ -374,23 +447,25 @@
 
                     streak.mesh.geometry.attributes.position.needsUpdate = true;
 
-                    // Fade in/out streaks
-                    const targetOpacity = hyperdriveActive ? 0.7 : 0;
-                    streak.mesh.material.opacity += (targetOpacity - streak.mesh.material.opacity) * 0.05;
+                    // Intense fade in with pulsing effect
+                    const pulseEffect = Math.sin(Date.now() * 0.005 + index * 0.1) * 0.15 + 0.85;
+                    const targetOpacity = hyperdriveActive ? 0.85 * pulseEffect : 0;
+                    streak.mesh.material.opacity += (targetOpacity - streak.mesh.material.opacity) * 0.08;
                 });
             } else {
                 // Fade out streaks
                 starStreaks.forEach(streak => {
-                    streak.mesh.material.opacity *= 0.95;
+                    streak.mesh.material.opacity *= 0.92;
                 });
             }
 
-            // Camera subtle movement for immersion
-            camera.position.x = Math.sin(Date.now() * 0.0001) * 2;
-            camera.position.y = Math.cos(Date.now() * 0.00015) * 1.5;
+            // Camera movement - more dramatic during hyperdrive
+            const movementScale = hyperdriveActive ? 4 : 2;
+            camera.position.x = Math.sin(Date.now() * 0.0001) * movementScale;
+            camera.position.y = Math.cos(Date.now() * 0.00015) * (movementScale * 0.75);
 
             // Update UI
-            const velocity = currentSpeed.toFixed(3);
+            const velocity = currentSpeed.toFixed(2);
             document.getElementById('velocity').textContent = velocity;
 
             renderer.render(scene, camera);
